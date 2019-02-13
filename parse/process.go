@@ -52,6 +52,8 @@ func Process(r io.Reader) (Packages, error) {
 		}
 		scan = true
 
+		e.ProcessNestedTest()
+
 		pkg, ok := pkgs[e.Package]
 		if !ok {
 			pkg = NewPackage()
@@ -107,6 +109,11 @@ func Process(r io.Reader) (Packages, error) {
 		if ok {
 			pkg.Cover = true
 			pkg.Coverage = cover
+		}
+
+		if e.NestedTest() {
+			pkg.Summary.Package = e.Package
+			pkg.Summary.Test = e.Test
 		}
 
 		if !e.Discard() {

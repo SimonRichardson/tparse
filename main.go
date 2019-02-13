@@ -120,7 +120,7 @@ func main() {
 
 	if *topPtr {
 		w.SummaryTable(pkgs, *showNoTestsPtr)
-		w.PrintFailed(pkgs)
+		w.PrintFailed(pkgs, opts)
 		w.TestsTable(pkgs, opts)
 		if *dumpPtr {
 			parse.ReplayOutput(os.Stderr, &replayBuf)
@@ -131,7 +131,7 @@ func main() {
 			parse.ReplayOutput(os.Stderr, &replayBuf)
 		}
 		w.TestsTable(pkgs, opts)
-		w.PrintFailed(pkgs)
+		w.PrintFailed(pkgs, opts)
 		w.SummaryTable(pkgs, *showNoTestsPtr)
 	}
 
@@ -385,7 +385,7 @@ func (w *consoleWriter) TestsTable(pkgs parse.Packages, options testsTableOption
 	}
 }
 
-func (w *consoleWriter) PrintFailed(pkgs parse.Packages) {
+func (w *consoleWriter) PrintFailed(pkgs parse.Packages, options testsTableOptions) {
 	// Print all failed tests per package (if any). Panic is an exception.
 	for _, pkg := range pkgs {
 
@@ -406,13 +406,43 @@ func (w *consoleWriter) PrintFailed(pkgs parse.Packages) {
 
 		fmt.Fprintf(w.Output, colorize(sn, cRed, w.Color))
 
-		for i, t := range failed {
+		tbl := tablewriter.NewWriter(w.Output)
+
+		tbl.SetHeader([]string{
+			"Status",
+			"Test",
+			"Package",
+		})
+
+		tbl.SetAutoWrapText(false)
+
+		for _, t := range failed {
 			t.SortEvents()
 
-			fmt.Fprintf(w.Output, "%s", t.Stack())
-			if i < len(failed)-1 {
-				fmt.Fprintf(w.Output, "\n")
+			var testName strings.Builder
+			testName.WriteString(t.Name)
+			if options.trim && testName.Len() > 32 && strings.Count(testName.String(), "/") > 0 {
+				testName.Reset()
+				ss := strings.Split(t.Name, "/")
+				testName.WriteString(ss[0] + "\n")
+				for i, s := range ss[1:] {
+					testName.WriteString(" /" + s)
+					if i != len(ss[1:])-1 {
+						testName.WriteString("\n")
+					}
+				}
 			}
+
+			tbl.Append([]string{
+				withColor(t.Status(), w.Color),
+				testName.String(),
+				filepath.Base(t.Package),
+			})
+		}
+
+		if tbl.NumLines() > 0 {
+			fmt.Fprintf(w.Output, "\n")
+			tbl.Render()
 		}
 	}
 }

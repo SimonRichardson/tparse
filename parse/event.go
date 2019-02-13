@@ -48,6 +48,21 @@ func NewEvent(data []byte) (*Event, error) {
 	return &e, nil
 }
 
+// ProcessNestedTest checks to see if the event is actually really a nested
+// test
+func (e *Event) ProcessNestedTest() {
+	if e.NestedTest() {
+		if strings.HasPrefix(e.Output, "PASS") {
+			e.Action = ActionPass
+		} else if strings.HasPrefix(e.Output, "FAIL") {
+			e.Action = ActionFail
+		}
+		if parts := strings.Split(strings.Replace(e.Output, "	", " ", -1), " "); len(parts) > 2 {
+			e.Test = parts[2]
+		}
+	}
+}
+
 // Events is a slice of events belonging to a single test based on test name.
 // All events must belong to a single test and thus a single package.
 type Events []*Event
@@ -120,6 +135,12 @@ func (e *Event) NoTestsWarn() bool {
 // "ok  \tgithub.com/mfridman/srfax\t(cached)\tcoverage: 28.8% of statements\n"
 func (e *Event) IsCached() bool {
 	return strings.HasPrefix(e.Output, "ok  \t") && strings.Contains(e.Output, "\t(cached)")
+}
+
+// NestedTest reports if the event is a nested event
+// {"Time":"2019-02-13T12:02:10.183798579Z","Action":"output","Package":"github.com/juju/juju/cmd/juju/machine","Test":"TestPackage","Output":"PASS: upgradeseries_test.go:104: UpgradeSeriesSuite.TestUpgradeCommandShouldNotAcceptInvalidPrepCommands\t0.000s\n"}
+func (e *Event) NestedTest() bool {
+	return e.Test != "" && (strings.HasPrefix(e.Output, "PASS") || strings.HasPrefix(e.Output, "FAIL"))
 }
 
 // Cover reports special event case for package coverage:
